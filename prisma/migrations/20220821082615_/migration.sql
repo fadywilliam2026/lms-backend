@@ -1,0 +1,33 @@
+-- AlterTable
+ALTER TABLE "loan_accounts" ALTER COLUMN "account_state" DROP NOT NULL,
+ALTER COLUMN "accrued_interest" DROP NOT NULL,
+ALTER COLUMN "accrued_penalty" DROP NOT NULL,
+ALTER COLUMN "accrue_interest_after_maturity" DROP NOT NULL,
+ALTER COLUMN "arrears_tolerance_period" DROP NOT NULL,
+ALTER COLUMN "fees_balance" DROP NOT NULL,
+ALTER COLUMN "fees_due" DROP NOT NULL,
+ALTER COLUMN "fees_paid" DROP NOT NULL,
+ALTER COLUMN "has_custom_schedule" DROP NOT NULL,
+ALTER COLUMN "hold_balance" DROP NOT NULL,
+ALTER COLUMN "interest_due" DROP NOT NULL,
+ALTER COLUMN "interest_from_arrears_accrued" DROP NOT NULL,
+ALTER COLUMN "interest_from_arrears_balance" DROP NOT NULL,
+ALTER COLUMN "interest_from_arrears_due" DROP NOT NULL,
+ALTER COLUMN "interest_from_arrears_paid" DROP NOT NULL,
+ALTER COLUMN "interest_paid" DROP NOT NULL,
+ALTER COLUMN "interest_rate_source" DROP NOT NULL,
+ALTER COLUMN "locked_operations" SET DEFAULT ARRAY[]::TEXT[],
+ALTER COLUMN "penalty_balance" DROP NOT NULL,
+ALTER COLUMN "penalty_due" DROP NOT NULL,
+ALTER COLUMN "penalty_paid" DROP NOT NULL,
+ALTER COLUMN "penalty_rate" SET DEFAULT 0.0,
+ALTER COLUMN "principal_balance" DROP NOT NULL,
+ALTER COLUMN "principal_due" DROP NOT NULL,
+ALTER COLUMN "principal_paid" DROP NOT NULL,
+ALTER COLUMN "installment_period_count" DROP NOT NULL,
+ALTER COLUMN "installment_period_count" SET DEFAULT 1,
+ALTER COLUMN "installment_period_unit" DROP NOT NULL,
+ALTER COLUMN "installment_period_unit" SET DEFAULT 'MONTHS';
+
+-- AlterTable
+ALTER TABLE "loan_products" ALTER COLUMN "future_payments_acceptance" DROP NOT NULL;

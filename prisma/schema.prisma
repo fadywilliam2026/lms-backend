@@ -1,0 +1,1457 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// This lists the number of deviations we had from Mambu's data dictionary:
+// - Loan accounts hve customFields.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Authentication
+
+model User {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  email        String?  @unique
+  password     String?
+  firstName    String   @map("first_name")
+  lastName     String?  @map("last_name")
+  customFields Json?    @map("custom_fields")
+  roleId       Int      @map("role_id")
+  permissions  String[]
+  phone        String?  @unique
+  webhookUrl   String?  @map("webhook_url")
+
+  controlOfCashFlow     Holder   @default(partner) @map("control_of_cash_flow")
+  carrierOfPaymentRisk  Holder   @default(partner) @map("carrier_of_payment_risk")
+  methodOfLoanRepayment Transfer @default(partner) @map("method_of_loan_repayment")
+
+  organizationId Int?          @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  refreshTokens RefreshToken[]
+  role          Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  clients        Client[]
+  loanAccounts   LoanAccount[]
+  otp            OTP?
+  GLJournalEntry GLJournalEntry[]
+
+  @@map("users")
+}
+
+model Organization {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  name         String   @unique
+  products     Json?
+  customFields Json?    @map("custom_fields")
+  users        User[]
+  Client       Client[]
+
+  @@map("organizations")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  name        String   @unique
+  permissions String[]
+
+  users User[]
+
+  @@map("roles")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  token     String   @unique // refresh token
+  jti       String   @unique // jwt id
+  userId    Int      @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// Client
+
+enum ClientState {
+  PENDING_APPROVAL
+  INACTIVE
+  ACTIVE
+  EXITED
+  BLACKLISTED
+  REJECTED
+  ARCHIVED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum PreferredLanguage {
+  ENGLISH
+  ARABIC
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  activatedAt DateTime? @map("activated_at")
+  approvedAt  DateTime? @map("approved_at")
+  closedAt    DateTime? @map("closed_at")
+
+  firstName   String    @map("first_name")
+  lastName    String?   @map("last_name")
+  email       String?   @unique
+  phone       String?   @unique
+  gender      Gender?
+  birthDate   DateTime? @map("birth_date")
+  address     String?
+  governorate String?
+  city        String?
+
+  // TODO/QUESTION: Should we remove these and consider them in customFields?
+  nationalId  String  @unique @map("national_id")
+  taxRecordId String? @map("tax_record_id")
+
+  notes             String?
+  customFields      Json?             @map("custom_fields")
+  preferredLanguage PreferredLanguage @default(ARABIC) @map("preferred_language")
+  // TODO/QUESTION: Do we need profile pictures?
+  // TODO/QUESTION: Do we need profile signature?
+
+  loanCycle Int @default(0) @map("loan_cycle")
+
+  userId Int?  @map("user_id")
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  organizationId Int?          @map("organizatation_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  state ClientState @default(PENDING_APPROVAL)
+
+  initialLimit             Float?  @default(0) @map("initial_limit") //initial limit for the client
+  currentLimit             Float?  @default(0) @map("current_limit") //current limit minus the total amount of loans
+  approvedLimit            Float?  @default(0) @map("limit_balance") //current limit that can be upgraded or downgraded
+  commercialName           String? @map("commercial_name")
+  contractId               Int?    @map("contract_id")
+  authToken                String? @map("auth_token")
+  firstContractFormAnswers Json?   @map("first_contract_form_answers")
+
+  duePaymentHistory           DuePaymentHistory? @default(NO) @map("due_payment_history")
+  historicalLoansCount        Int?               @default(0) @map("historical_loans_count") //number of loans with flend
+  partnerHistoricalLoansCount Int?               @default(0) @map("partner_historical_loans_count") //number of loans with partner
+  yearsOfOperations           Int?               @default(0) @map("years_of_operations")
+  pastDuesCount               Int?               @default(0) @map("past_dues") // number of time pastdues
+  isChequeSecurity            Boolean?           @default(false) @map("is_cheque_security")
+  paymentFrequency            PaymentFrequency?  @default(EVERY_MONTH) @map("payment_frequency")
+
+  loanAccounts          LoanAccount[] @relation("loanAccounts")
+  loanAccountsGuaranted LoanAccount[] @relation("loanAccountsGuaranted")
+
+  clientRefreshTokens ClientRefreshToken[]
+
+  @@unique([commercialName, organizationId])
+  @@map("clients")
+}
+
+enum Holder {
+  partner
+  client
+}
+
+enum Transfer {
+  client
+  partner
+  directDebit @map("direct_debit")
+}
+
+enum DuePaymentHistory {
+  NO
+  LATE_FROM_8_TO_30
+  LATE_FROM_31_TO_60
+  OVER_60
+  UNSETTLED
+
+  @@map("due_payment_history")
+}
+
+enum PaymentFrequency {
+  EVERY_7_DAYS
+  EVERY_15_DAYS
+  EVERY_MONTH
+}
+
+model ClientRefreshToken {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  token     String   @unique // refresh token
+  jti       String   @unique // jwt id
+  clientId  Int      @map("client_id")
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_refresh_tokens")
+}
+
+model LoanProduct {
+  id                                       Int                                @id @default(autoincrement())
+  name                                     String
+  accrueLateInterest                       Boolean?                           @default(true) @map("accrue_late_interest")
+  active                                   Boolean?                           @default(true)
+  amortizationMethod                       AmortizationMethod?                @default(STANDARD_PAYMENTS) @map("amortization_method")
+  applyAutomaticInterestOnPrepayment       Boolean?                           @default(true) @map("apply_automatic_interest_on_prepayment") //can be removed later
+  arrearsSettings                          ProductArrearsSettings?            @relation(fields: [arrearsSettingsId], references: [id])
+  arrearsSettingsId                        Int?                               @map("arrears_settings_id")
+  cappingaApplyAccruedChargesBeforeLocking Boolean?                           @default(true) @map("capping_apply_accrued_charges_before_locking")
+  cappingConstraintType                    CappingConstraintType?             @default(SOFT_CAP) @map("capping_constraint_type")
+  cappingMethod                            CappingMethod?                     @default(OUTSTANDING_PRINCIPAL_PERCENTAGE) @map("capping_method")
+  cappingPercentage                        Float?                             @default(0.0) @map("capping_percentage")
+  category                                 Category?                          @default(PERSONAL_LENDING)
+  createdAt                                DateTime                           @default(now()) @map("created_at")
+  updatedAt                                DateTime                           @updatedAt @map("updated_at")
+  currencyCode                             CurrencyCode?                      @default(EGP) @map("currency_code")
+  daysInYear                               DaysInYear?                        @default(ACTUAL_365_FIXED) @map("days_in_year")
+  defaultFirstInstallmentDueDateOffset     Int?                               @default(0) @map("default_first_installment_duedate_offset")
+  defaultGracePeriod                       Int?                               @default(0) @map("default_grace_period")
+  defaultLoanAmount                        Float?                             @default(0.0) @map("default_loan_amount")
+  defaultNumInstallments                   Int?                               @default(0) @map("default_num_installments")
+  defaultPenaltyRate                       Float?                             @default(0.0) @map("default_penalty_rate")
+  defaultPrincipalInstallmentInterval      Int                                @default(0) @map("default_principal_installment_interval")
+  defaultInstallmentPeriodCount            Int                                @default(1) @map("default_installment_period_count")
+  dormancyPeriodDays                       Int?                               @default(0) @map("dormancy_period_days")
+  elementsRecalculationMethod              ElementsRecalculationMethod?       @default(FIXED_PRINCIPAL_EXPECTED) @map("elements_recalculation_method")
+  fixedDaysOfMonth                         Int[]                              @map("fixed_days_of_month")
+  futurePaymentsAcceptance                 Boolean?                           @default(true) @map("future_payments_acceptance")
+  gracePeriodType                          GracePeriodType?                   @default(NONE) @map("grace_period_type")
+  interestApplicationMethod                InterestApplicationMethod?         @default(ON_DISBURSEMENT) @map("interest_application_method")
+  interestBalanceCalculationMethod         InterestBalanceCalculationMethod?  @default(ONLY_PRINCIPAL) @map("interest_balance_calculation_method")
+  interestCalculationMethod                InterestCalculationMethod?         @default(FLAT) @map("interest_calculation_method")
+  interestRateSetting                      InterestProductSettings?           @relation(fields: [interestRateSettingsId], references: [id])
+  interestRateSettingsId                   Int?                               @map("interest_rate_settings_id")
+  interestType                             InterestType?                      @default(SIMPLE_INTEREST) @map("interest_type")
+  latePaymentsRecalculationMethod          LatePaymentsRecalculationMethod?   @default(INCREASE_OVERDUE_INSTALLMENTS) @map("late_payments_recalculation_method")
+  loanPenaltyCalculationMethod             LoanPenaltyCalculationMethod?      @default(NONE) @map("loan_penalty_calculation_method")
+  loanPenaltyGracePeriod                   Int?                               @default(0) @map("loan_penalty_grace_period")
+  type                                     LoanProductType                    @default(FIXED_TERM_LOAN) @map("loan_product_type")
+  lockPeriodDays                           Int?                               @default(0) @map("lock_period_days")
+  maxFirstInstallmentDueDateOffset         Int?                               @default(30) @map("max_first_installment_due_date_offset")
+  maxGracePeriod                           Int?                               @default(30) @map("max_grace_period")
+  maxLoanAmount                            Float?                             @default(1000000.0) @map("max_loan_amount")
+  maxNumberOfDisbursementTranches          Int?                               @default(100) @map("max_number_of_disbursement_tranches")
+  maxNumInstallments                       Int?                               @default(100) @map("max_num_installments")
+  maxPenaltyRate                           Float?                             @default(100.0) @map("maxpenalty_rate")
+  minFirstInstallmentDueDateOffset         Int?                               @default(0) @map("min_first_installment_due_date_offset")
+  minGracePeriod                           Int?                               @default(0) @map("min_grace_period")
+  minLoanAmount                            Float?                             @default(0.0) @map("min_loan_amount")
+  minNumInstallments                       Int?                               @default(0) @map("min_num_installments")
+  minPenaltyRate                           Float?                             @default(0.0) @map("min_penalty_rate")
+  offsetPercentage                         Float?                             @default(0.0) @map("offset_percentage")
+  paymentMethod                            PaymentMethod?                     @default(HORIZONTAL) @map("payment_method")
+  prepaymentAcceptance                     Boolean?                           @default(true) @map("prepayment_acceptance")
+  prepaymentRecalculationMethod            PrepaymentRecalculationMethod?     @default(NO_RECALCULATION) @map("prepayment_recalculation_method")
+  principalPaidInstallmentStatus           PrincipalPaidInstallmentStatus?    @default(PARTIALLY_PAID) @map("principal_paid_installment_status")
+  principalPaymentSettings                 PrincipalPaymentProductSettings?   @relation(fields: [principalPaymentSettingsId], references: [id])
+  principalPaymentSettingsId               Int?                               @map("principal_payment_settings_id")
+  description                              String?
+  allowRedraw                              Boolean                            @default(true) @map("allow_redraw")
+  installmentAllocationOrder               InstallmentAllocation[]            @map("installment_allocation_order")
+  installmentCurrencyRounding              InstallmentCurrencyRounding?       @default(NO_ROUNDING) @map("installment_currency_rounding")
+  installmentElementsRoundingMethod        InstallmentElementsRoundingMethod? @default(NO_ROUNDING) @map("installment_elements_rounding_method")
+  installmentPeriodUnit                    InstallmentPeriodUnit?             @default(MONTHS) @map("installment_period_unit")
+  installmentReschedulingMethod            InstallmentReschedulingMethod?     @default(NONE) @map("installment_rescheduling_method")
+  installmentScheduleMethod                InstallmentScheduleMethod?         @default(NONE) @map("installment_schedule_method")
+  roundingInstallmentScheduleMethod        RoundingInstallmentScheduleMethod? @default(NO_ROUNDING) @map("rounding_installment_schedule_method")
+  scheduleDueDatesMethod                   ScheduleDueDatesMethod?            @default(INTERVAL) @map("schedule_due_dates_method")
+  scheduleInterestDaysCountMethod          ScheduleInterestDaysCountMethod?   @default(USING_ACTUAL_DAYS_COUNT) @map("schedule_interest_days_count_method")
+  settlementOptions                        SettlementOptions?                 @default(FULL_DUE_AMOUNTS) @map("settlement_options")
+  shortMonthHandlingMethod                 ShortMonthHandlingMethod?          @default(LAST_DAY_IN_MONTH) @map("short_month_handling_method")
+  taxCalculationMethod                     TaxCalculationMethod?              @default(INCLUSIVE) @map("tax_calculation_method")
+  taxesOnFeesEnabled                       Boolean?                           @default(true) @map("taxes_on_fees_enabled")
+  taxesOnInterestEnabled                   Boolean?                           @default(true) @map("taxes_on_interest_enabled")
+  taxesOnPenaltyEnabled                    Boolean?                           @default(true) @map("taxes_on_penalty_enabled")
+  deleted                                  Boolean?                           @default(false)
+  organizationCommissionPercent            Float?                             @default(0) @map("organization_commision_percent")
+  loanAccounts                             LoanAccount[]
+  predefinedFees                           PredefinedFee[]
+  gLAccountingRule                         GLAccountingRule[]
+  gLJournalEntry                           GLJournalEntry[]
+
+  @@map("loan_products")
+}
+
+enum LoanProductType {
+  FIXED_TERM_LOAN
+  DYNAMIC_TERM_LOAN
+  INTEREST_FREE_LOAN
+  TRANCHED_LOAN
+  REVOLVING_CREDIT
+}
+
+enum ShortMonthHandlingMethod {
+  LAST_DAY_IN_MONTH
+  FIRST_DAY_OF_NEXT_MONTH
+}
+
+enum InstallmentScheduleMethod {
+  NONE
+
+  // The repayment schedule is fixed and doesn’t change all over the loan account’s lifecycle.
+  // More detailed, the principal and interest due which get computed for each repayment doesn’t ever change,
+  // even if a repayment is pre-paid or paid later. Penalties and fees can be applied only on repayments.
+  // Still, reduction operations can be performed over the principal, interest, fees and penalties amounts
+  // (only with special settings enabled)
+  FIXED
+
+  // The repayment schedule is dynamic and will change over the loan account’s lifecycle e.g. when entering repayments,
+  // on holidays changes or interest rates changes. For example, if paying an amount grater that what is due at a given
+  // time will cause the interest balance to be recomputed and will be lower that the amount initially computed.
+  /// Penalties and fees can be applied only straight into the account
+  DYNAMIC
+}
+
+enum InstallmentReschedulingMethod {
+  NONE
+  NEXT_WORKING_DAY
+  PREVIOUS_WORKING_DAY
+  EXTEND_SCHEDULE
+}
+
+enum InstallmentAllocation {
+  PRINCIPAL
+  INTEREST
+  FEES
+  PENALTY
+
+  @@map("installment_allocation")
+}
+
+enum InterestBalanceCalculationMethod {
+  ONLY_PRINCIPAL
+  PRINCIPAL_AND_INTEREST
+
+  @@map("interest_balance_calculation_method")
+}
+
+enum GracePeriodType {
+  NONE
+
+  // Interest is charged and paid for the repayments (but capital repayment is 0).
+  PAY_INTEREST_ONLY
+
+  // Interest is neither charged nor paid. a pure grace period.
+  INTEREST_FORGIVENESS
+}
+
+enum CurrencyCode {
+  EGP
+  USD
+  EUR
+
+  @@map("currency_code")
+}
+
+enum TaxCalculationMethod {
+  INCLUSIVE
+  EXCLUSIVE
+
+  @@map("tax_calculation_method")
+}
+
+enum SettlementOptions {
+  FULL_DUE_AMOUNTS
+  PARTIAL_DUE_AMOUNTS
+
+  @@map("settlement_options")
+}
+
+enum ScheduleInterestDaysCountMethod {
+  USING_INSTALLMENT_PERIODICITY
+  USING_ACTUAL_DAYS_COUNT
+
+  @@map("schedule_interest_days_count_method")
+}
+
+enum ScheduleDueDatesMethod {
+  // The repayments will be made on a specified interval (e.g. Every 2 Months)
+  INTERVAL
+
+  // The repayments will be made each month on some given dates (for example,
+  // each month on 10th and 20th means that each month there will be two installments,
+  // one made on 10 of that month and one on 20)
+  FIXED_DAYS_OF_MONTH
+
+  @@map("schedule_due_dates_method")
+}
+
+enum RoundingInstallmentScheduleMethod {
+  NO_ROUNDING
+  ROUND_TO_NEAREST_WHOLE_UNIT
+
+  @@map("rounding_installment_schedule_method")
+}
+
+enum InstallmentPeriodUnit {
+  DAYS
+  WEEKS
+  MONTHS
+  QUARTERS
+  YEARS
+
+  @@map("installment_period_unit")
+}
+
+enum InstallmentCurrencyRounding {
+  NO_ROUNDING
+  ROUND_TO_NEAREST_WHOLE_UNIT
+
+  @@map("installment_currency_rounding")
+}
+
+enum InstallmentElementsRoundingMethod {
+  NO_ROUNDING
+  ROUND_ALL
+  PAYMENT_DUE
+
+  @@map("installment_elements_rounding_method")
+}
+
+model PrincipalPaymentProductSettings {
+  id                Int   @id @default(autoincrement())
+  defaultAmount     Float @map("default_amount")
+  defaultPercentage Float @map("default_percentage")
+  maxAmount         Float @map("max_amount")
+  maxPercentage     Float @map("max_percentage")
+  minAmount         Float @map("min_amount")
+  minPercentage     Float @map("min_percentage")
+
+  loanProduct LoanProduct[]
+
+  @@map("principal_payment_product_settings")
+}
+
+enum PrincipalPaidInstallmentStatus {
+  PARTIALLY_PAID
+  PAID
+  ORIGINAL_TOTAL_EXPECTED_PAID
+
+  @@map("principal_paid_installment_status")
+}
+
+enum PrepaymentRecalculationMethod {
+  NO_RECALCULATION
+  RESCHEDULE_REMAINING_INSTALLMENTS
+  RECALCULATE_SCHEDULE_KEEP_SAME_NUMBER_OF_TERMS
+  RECALCULATE_SCHEDULE_KEEP_SAME_PRINCIPAL_AMOUNT
+  RECALCULATE_SCHEDULE_KEEP_SAME_TOTAL_INSTALLMENT_AMOUNT
+  REDUCE_AMOUNT_PER_INSTALLMENT
+  REDUCE_NUMBER_OF_INSTALLMENTS
+
+  @@map("prepayment_recalculation_method")
+}
+
+enum PaymentMethod {
+  // The payment is done horizontally, on the repayments, following the repayment allocation elements order.
+  HORIZONTAL
+
+  // The payment is done vertically, into the account, following the repayment allocation elements order.
+  VERTICAL
+
+  @@map("payment_method")
+}
+
+enum LoanPenaltyCalculationMethod {
+  NONE
+  OVERDUE_PRINCIPAL
+  OVERDUE_PRINCIPAL_AND_INTEREST
+
+  @@map("loan_penalty_calculation_method")
+}
+
+enum LineOfCreditRequirement {
+  OPTIONAL
+  REQUIRED
+  NOT_REQUIRED
+
+  @@map("line_of_credit_requirement")
+}
+
+enum LatePaymentsRecalculationMethod {
+  INCREASE_OVERDUE_INSTALLMENTS
+  INCREASE_LAST_INSTALLMENT
+
+  @@map("late_payments_recalculation_method")
+}
+
+enum InterestType {
+  SIMPLE_INTEREST
+  CAPITALIZED_INTEREST
+  COMPOUNDING_INTEREST
+
+  @@map("interest_type")
+}
+
+model InterestProductSettings {
+  id                        Int                      @id @default(autoincrement())
+  allowNegativeInterestRate Boolean?                 @default(false) @map("allow_negative_interest_rate")
+  compoundingFrequency      InterestChargeFrequency? @default(ANNUALIZED) @map("compounding_frequency")
+  defaultInterestRate       Float?                   @default(0) @map("default_interest_rate")
+  loanProduct               LoanProduct[]
+  maxInterestRate           Float?                   @default(0) @map("max_interest_rate")
+  minInterestRate           Float?                   @default(0) @map("min_interest_rate")
+
+  @@map("interest_product_settings")
+}
+
+enum InterestCalculationMethod {
+  FLAT
+  DECLINING_BALANCE
+  DECLINING_BALANCE_DISCOUNTED
+
+  @@map("interest_calculation_method")
+}
+
+enum InterestApplicationMethod {
+  // All the interest amount gets applied only once, on disbursement time.
+  // There is no way of applying interest manually, through the cron jobs, or when performing repayments
+  ON_DISBURSEMENT
+
+  // The interest gets applied on each repayment and there are multiple ways of performing this.
+  // There is an accrued interest, which gets accumulated every day,
+  // this determining how much interest needs to be applied on the repayments.
+  // The interest can be applied by the cron jobs in the due date of a repayment.
+  // The interest can also be applied manually: behind the scenes,
+  // when performing a repayment or explicitly by using the UI function available for this.
+  ON_INSTALLMENT
+
+  @@map("interest_application_method")
+}
+
+enum IdGeneratorType {
+  RANDOM_PATTERN
+  INCREMENTAL_NUMBER
+
+  @@map("id_generator_type")
+}
+
+enum ElementsRecalculationMethod {
+  FIXED_PRINCIPAL_EXPECTED
+  FIXED_TOTAL_EXPECTED
+
+  @@map("elements_recalculation_method")
+}
+
+enum DaysInYear {
+  ACTUAL_365_FIXED
+  ACTUAL_360
+
+  @@map("days_in_year")
+}
+
+enum Category {
+  PERSONAL_LENDING
+  PURCHASE_FINANCING
+  RETAIL_MORTGAGES
+  SME_LENDING
+  COMMERCIAL
+  UNCATEGORIZED
+
+  @@map("category")
+}
+
+model ProductArrearsSettings {
+  id                                               Int           @id @default(autoincrement())
+  defaultTolerancePercentageOfOutstandingPrincipal Float?        @map("default_tolerance_percentage_of_outstanding_principal")
+  defaultTolerancePeriod                           Int?          @map("default_tolerance_period")
+  maxTolerancePercentageOfOutstandingPrincipal     Float?        @map("max_tolerance_percentage_of_outstanding_principal")
+  maxTolerancePeriod                               Int?          @map("max_tolerance_period")
+  minTolerancePercentageOfOutstandingPrincipal     Float?        @map("min_tolerance_percentage_of_outstanding_principal")
+  minTolerancePeriod                               Int?          @map("min_tolerance_period")
+  monthlyToleranceDay                              Int?          @map("monthly_tolerance_day")
+  loanProduct                                      LoanProduct[]
+
+  @@map("arrears_settings")
+}
+
+enum CappingMethod {
+  OUTSTANDING_PRINCIPAL_PERCENTAGE
+  ORIGINAL_PRINCIPAL_PERCENTAGE
+
+  @@map("capping_method")
+}
+
+enum CappingConstraintType {
+  SOFT_CAP
+  HARD_CAP
+
+  @@map("capping_constraint_type")
+}
+
+enum AmortizationMethod {
+  STANDARD_PAYMENTS
+  BALLOON_PAYMENTS
+  PAYMENT_PLAN
+
+  @@map("amortization_method")
+}
+
+// Document
+
+enum DocumentOwnerType {
+  CLIENT
+  USER
+}
+
+model Document {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  type         String
+  originalName String  @map("original_name")
+  description  String?
+  location     String?
+  customFields Json?   @map("custom_fields")
+
+  // POSTPONED
+  // Polymorphic relations, Prisma issue: https://github.com/prisma/prisma/issues/1644
+  ownerType DocumentOwnerType
+  ownerId   Int
+
+  @@map("documents")
+}
+
+enum AmortizationProfile {
+  NONE
+  SUM_OF_YEARS_DIGITS
+  STRAIGHT_LINE
+  EFFECTIVE_INTEREST_RATE
+
+  @@map("amortization_profile")
+}
+
+enum AmountCalculationMethod {
+  FLAT
+  LOAN_AMOUNT_PERCENTAGE
+  INSTALLMENT_PRINCIPAL_AMOUNT_PERCENTAGE
+
+  @@map("amount_calculation_method")
+}
+
+enum ApplyDateMethod {
+  MONTHLY_FROM_ACTIVATION
+  FIRST_OF_EVERY_MONTH
+
+  @@map("apply_date_method")
+}
+
+enum FeeAmortizationUponRescheduleOption {
+  END_AMORTIZATION_ON_THE_ORIGINAL_ACCOUNT
+  CONTINUE_AMORTIZATION_ON_THE_RESCHEDULED_REFINANCED_ACCOUNT
+
+  @@map("fee_amortization_upon_reschedule_option")
+}
+
+enum TriggerPredefinedFee {
+  MANUAL
+  DISBURSEMENT
+  CAPITALIZED_DISBURSEMENT
+  LATE_REPAYMENT
+  MONTHLY_FEE
+  PAYMENT_DUE
+  ARBITRARY
+  SETTLEMENT
+
+  @@map("trigger_predefined_fee")
+}
+
+model PredefinedFee {
+  active                              Boolean?                             @default(true)
+  amortizationProfile                 AmortizationProfile?                 @default(NONE) @map("amortization_profile")
+  amount                              Float?                               @default(0)
+  amountCalculationMethod             AmountCalculationMethod              @map("amount_calculation_method")
+  applyDateMethod                     ApplyDateMethod?                     @default(MONTHLY_FROM_ACTIVATION) @map("apply_date_method")
+  createdAt                           DateTime                             @default(now()) @map("created_at")
+  feeAmortizationUponRescheduleOption FeeAmortizationUponRescheduleOption? @map("fee_amortization_upon_reschedule_option")
+  id                                  Int                                  @id @default(autoincrement())
+  updatedAt                           DateTime                             @updatedAt @map("updated_at")
+  name                                String?
+  percentageAmount                    Float?                               @default(0) @map("percentage_amount")
+  triggerPredefinedFee                TriggerPredefinedFee?
+  loanProductId                       Int                                  @map("loan_product_id")
+  loanProduct                         LoanProduct                          @relation(fields: [loanProductId], references: [id], onDelete: Cascade)
+
+  @@map("predefined_fees")
+}
+
+enum InstallmentState {
+  PENDING
+  LATE
+  PAID
+  PARTIALLY_PAID
+  GRACE
+}
+
+model Installment {
+  id                        Int              @id @default(autoincrement())
+  dueDate                   DateTime         @map("due_date")
+  feesDue                   Decimal          @default(0) @map("fees_due") @db.Money // money
+  feesPaid                  Decimal          @default(0) @map("fees_paid") @db.Money // money
+  fundersInterestDue        Decimal?         @default(0) @map("funders_interest_due") @db.Money
+  interestDue               Decimal          @default(0) @map("interest_due") @db.Money // money
+  interestPaid              Decimal          @default(0) @map("interest_paid") @db.Money // money
+  lastPaidDate              DateTime?        @map("last_paid_date")
+  lastPenaltyAppliedDate    DateTime?        @map("last_penalty_applied_date")
+  organizationCommissionDue Decimal?         @default(0) @map("organization_commission_due") @db.Money
+  penaltyDue                Decimal          @default(0) @map("penalty_due") @db.Money // money
+  penaltyPaid               Decimal          @default(0) @map("penalty_paid") @db.Money // money
+  principalDue              Decimal          @default(0) @map("principal_due") @db.Money // money
+  principalPaid             Decimal          @default(0) @map("principal_paid") @db.Money // money
+  repaidDate                DateTime?        @map("repaid_date")
+  noInterest                Boolean          @default(false) @map("no_interest")
+  state                     InstallmentState @default(PENDING)
+  loanAccountId             Int?             @map("loan_account_id")
+  loanAccount               LoanAccount?     @relation(fields: [loanAccountId], references: [id], onDelete: Cascade)
+
+  @@map("installments")
+}
+
+model PeriodicPayment {
+  id                        Int         @id @default(autoincrement())
+  endingInstallmentPosition Int         @map("ending_installment_position")
+  index                     Int?
+  loanAccountId             Int         @map("loan_account_id")
+  paymentPlanIndex          Int?        @map("payment_plan_index")
+  pmt                       Int
+  LoanAccount               LoanAccount @relation(fields: [loanAccountId], references: [id], onDelete: Cascade)
+
+  @@map("periodic_payments")
+}
+
+model PaymentPlan {
+  id            Int                   @id @default(autoincrement())
+  periodCount   Int                   @default(1) @map("period_count")
+  periodUnit    InstallmentPeriodUnit @default(MONTHS) @map("period_unit")
+  amount        Float                 @default(0)
+  loanAccountId Int                   @map("loan_account_id")
+  LoanAccount   LoanAccount           @relation(fields: [loanAccountId], references: [id], onDelete: Cascade)
+
+  @@map("payment_plan")
+}
+
+enum AccountState {
+  // Account has not yet been approved and is pending more information (in draft form)
+  PARTIAL_APPLICATION
+
+  // Account is ready to be approved by users with permission to do so
+  PENDING_APPROVAL
+
+  // Account has been approved and is now ready to be disbursed to the client
+  APPROVED
+
+  // Account has been been disbursed and is now active and in good standing
+  ACTIVE
+
+  // Account has been disbursed and is active but is in arrears (e.g.: has installments which are late)
+  ACTIVE_IN_ARREARS
+
+  // Account is no longer active (see accountSubState field for sub-states)
+  CLOSED
+
+  @@map("account_state")
+}
+
+enum AccountSubState {
+  // Related to ACTIVE state; the account is only partially disbursed
+  PARTIALLY_DISBURSED
+
+  // Related to ACTIVE or ACTIVE_IN_ARREARS states;
+  // the account is locked and may not be used further unless unlocked,
+  // in this state; no amount is automatically applied to the account,
+  // ie. no automatic interest is applied, fees, penalties or transfer transactions logged;
+  // interest is accrued; rate change transactions are logged
+  LOCKED
+
+  // Related to ACTIVE_IN_ARREARS state;
+  // an account will be set to this substate when it is in arrears and the total owed for interest,
+  // fees and penalties has exceeded the threshold allowed by your organization’s risk settings.
+  // Please see our article on internal controls for more information on managing thresholds and what is
+  // and is not possible when an account is in this substate.
+  LOCKED_CAPPING
+
+  // Related to CLOSED state; the account was closed and refinanced
+  REFINANCED
+
+  // Related to CLOSED state; the account was closed and further rescheduled
+  RESCHEDULED
+
+  // Related to CLOSED state; the account was closed before activation
+  WITHDRAWN
+
+  PAID
+
+  PAID_OFF
+
+  REJECTED
+
+  WRITTEN_OFF
+
+  TERMINATED
+
+  EARLY_PAYMENT
+
+  @@map("account_sub_state")
+}
+
+enum FuturePaymentsAcceptance {
+  NO_FUTURE_PAYMENTS
+  ACCEPT_FUTURE_PAYMENTS
+  ACCEPT_OVERPAYMENTS
+
+  @@map("future_payments_acceptance")
+}
+
+enum InterestChargeFrequency {
+  ANNUALIZED
+  EVERY_QUARTER
+  EVERY_MONTH
+  EVERY_WEEK
+  EVERY_DAY
+
+  @@map("interest_charge_frequency")
+}
+
+enum InterestRateReviewUnit {
+  DAYS
+  WEEKS
+  MONTHS
+
+  @@map("interest_rate_review_unit")
+}
+
+enum InterestRateSource {
+  FIXED_INTEREST_RATE
+  INDEX_INTEREST_RATE
+}
+
+enum InterestRoundingVersion {
+  VERSION_1
+  VERSION_2
+  VERSION_3
+
+  @@map("interest_rounding_version")
+}
+
+enum PrepaymentCalculationMethod {
+  NO_RECALCULATION
+  REDUCE_AMOUNT_PER_INSTALLMENT
+  REDUCE_NUMBER_OF_INSTALLMENTS
+
+  @@map("prepayment_calculation_method")
+}
+
+enum DateCalculationMethod {
+  ACCOUNT_FIRST_WENT_TO_ARREARS
+  LAST_LATE_REPAYMENT
+
+  @@map("date_calculation_method")
+}
+
+model AccountArrearsSettings {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  monthlyToleranceDay                       Int?   @default(0) @map("monthly_tolerance_day")
+  tolerancePercentageOfOutstandingPrincipal Float? @default(0) @map("tolerance_percentage_of_outstanding_principal")
+  tolerancePeriod                           Int?   @default(0) @map("tolerance_period")
+  // dateCalculationMethod                     DateCalculationMethod @map("date_calculation_method")
+  // Todo add it and add defaultDateCalculationMethod in ProductArrearsSettings
+  // add also nonworkingdaysmethod, tolerancecalculationmethod and their default values in product
+
+  loanAccounts LoanAccount[]
+
+  @@map("account_arrears_settings")
+}
+
+// DisbursementDetails
+// entity class which holds the informations related to the disbursement details as
+// disbursement date, first repayment date, disbursement fees.
+
+// NOTES:
+// - Removed transactiondetailskey per discussion with Amgad.
+model DisbursementDetails {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // The activation date, the date when the disbursement actually took place. Stored as Organization Time.
+  disbursementAt DateTime? @map("disbursement_at")
+
+  // The expected disbursement date of the account. Stored as Organization Time.
+  expectedDisbursementAt DateTime? @map("expected_disbursement_at")
+
+  // The date of the first repayment. Stored as Organization Time.
+  firstInstallmentAt DateTime? @map("first_installment_at")
+
+  loanAccount LoanAccount[]
+
+  @@map("disbursement_details")
+}
+
+// Stores a loan account or a loan application (which is just a loan account which is not yet active).
+// a loan account always belongs to a client or group and must be of a certain loan product type.
+// loan accounts store the detailed breakdown of the amounts due & paid.
+// this is redundant and must match with the amounts for all the repayments for the accounts.
+// like clients and groups, loan accounts are also assigned to users (credit officers) and branches.
+
+// NOTE:  Some fields are nullable because their defaults are set by loan product
+//        and for them to be null shows that there is an issue linking between
+//        loan products and accounts.
+
+// Removed:
+// - PrincipalPaymentSettingsKey per discussion with Amgad
+//
+model LoanAccount {
+  // These fields are common for all tables.
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  customFields Json? @map("custom_fields")
+
+  // The only loan account holder type we've implemented is Client.
+  clientId Int?    @map("client_id")
+  client   Client? @relation("loanAccounts", fields: [clientId], references: [id], onDelete: SetNull)
+
+  guarantorId Int?    @map("guarantor_id")
+  guarantor   Client? @relation("loanAccountsGuaranted", fields: [guarantorId], references: [id], onDelete: SetNull)
+
+  // Foreign key to the User (Credit Officer) who is assigned to his account.
+  userId Int?  @map("user_id")
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Arrears settings available for the current account.
+  accountArrearsSettingsId Int?                    @map("account_arrears_settings_id")
+  accountArrearsSettings   AccountArrearsSettings? @relation(fields: [accountArrearsSettingsId], references: [id], onDelete: Cascade)
+
+  // The current state of the loan account.
+  // Required.
+  accountState AccountState? @default(PARTIAL_APPLICATION) @map("account_state")
+
+  // This field holds a second state for the account.
+  accountSubState AccountSubState? @map("account_sub_state")
+
+  // How much interest has accrued to the account but is not yet posted.
+  accruedInterest Float? @default(0.0) @map("accrued_interest")
+
+  // Specifies the amount of penalty that has been accrued in the account.
+  accruedPenalty Float? @default(0.0) @map("accrued_penalty")
+
+  // If the product support this option, specify if the interest should be accrued after the account maturity date.
+  accrueInterestAfterMaturity Boolean? @default(false) @map("accrue_interest_after_maturity")
+
+  // Indicates whether the option to continue to accrue interest after the repayment date for late payments.
+  // See our support article for more information on this subject.
+  accrueLateInterest Boolean? @map("accrue_late_interest")
+
+  // TODO
+  // The key of the transaction that activated this account.
+  // activationTransaction
+
+  // POSTPONED
+  // Specify if the account is allowing offset links.
+  // allowOffset
+
+  // Apply interest on prepayment method copied from loan product on which this account is based.
+  applyAutomaticInterestOnPrepayment Boolean? @map("apply_automatic_interest_on_prepayment")
+
+  // The date when the loan account has been approved. Stored as Organization Time.
+  approvedAt DateTime? @map("approved_at")
+
+  // The tolerance period, in days, before an account will be marked as being arrears.
+  arrearsTolerancePeriod Int? @default(0) @map("arrears_tolerance_period")
+
+  // Date when the account was closed or null if never closed (OrganizationTime).
+  closedAt DateTime? @map("closed_at")
+
+  // The amount of days which will be automatically added to the first repayment date.
+  // So if, for example, this number is 5 and repayments should be made on the 1st of the month,
+  // the first repayment will instead be scheduled for the 5th.
+  defaultFirstInstallmentDueDateOffset Float? @map("default_first_installment_due_date_offset")
+
+  // The key of an entry in the disbursementdetails table containing information about the disbursement of this loan account.
+  disbursementDetailsId Int?                 @map("disbursement_details_id")
+  disbursementDetails   DisbursementDetails? @relation(fields: [disbursementDetailsId], references: [id], onDelete: Cascade)
+
+  // The method by which individual elements will be recalculated.
+  elementsRecalculationMethod ElementsRecalculationMethod? @map("elements_recalculation_method")
+
+  // How much fees are still due on the account (relevant for fixed accounts only).
+  feesBalance Decimal? @default(0.0) @map("fees_balance") @db.Money // money
+
+  // The total fees due for this loan account.
+  // Required.
+  feesDue Decimal? @default(0.0) @map("fees_due") @db.Money // money
+
+  // The total fees paid for this loan account.
+  // Required.
+  feesPaid Decimal? @default(0.0) @map("fees_paid") @db.Money // money
+
+  // Specifies the days of the month when the repayment due dates should be.
+  // Only available if the Repayment methodology is FIXED_DAYS_OF_MONTH.
+  fixedDaysOfMonth Int[] @map("fixed_days_of_month")
+
+  // Whether or not a customer can pay in advance. Will be either true or false. Default is false.
+  futurePaymentsAcceptance Boolean? @default(false) @map("future_payments_acceptance")
+
+  // Grace period for the loan account in the number of installments. Ignored if grace period is none or null.
+  gracePeriod Int? @map("grace_period")
+
+  // Type of Grace period or null if no grace period.
+  gracePeriodType GracePeriodType? @map("grace_period_type")
+
+  // Flag used when the repayments schedule for the current account was determined by the user,
+  // by editing the due dates or the principal due.
+  hasCustomSchedule Boolean? @default(false) @map("has_custom_schedule")
+
+  // The amount currently being held for pending card transactions. See our support page for more information.
+  holdBalance Float? @default(0.0) @map("hold_balance")
+
+  // The method used by the loans defining how the interest gets applied.
+  interestApplicationMethod InterestApplicationMethod? @map("interest_application_method")
+
+  // The total interest currently owed and outstanding for the client (total interest accrued for account - interest paid).
+  interestBalance Decimal @default(0.0) @map("interest_balance") @db.Money // money
+
+  // Option which determines the way the balance for the account’s interest is computed.
+  interestBalanceCalculationMethod InterestBalanceCalculationMethod? @map("interest_balance_calculation_method")
+
+  // The method used for calculating the interest on this loan account.
+  // Required.
+  interestCalculationMethod InterestCalculationMethod @map("interest_calculation_method")
+
+  // Defines how the interest is charge on this loan account.
+  // For instance if the interest rate is 5% and the charge frequency is EVERY_DAY then
+  // 5% is charged every day to this account when determining the repayment schedule.
+  // Required.
+  interestChargeFrequency InterestChargeFrequency @default(ANNUALIZED) @map("interest_charge_frequency")
+
+  // The value of the interest booked by the organization from the accounts funded by investors.
+  // Null if the funds are not enabled.
+  interestComission Float? @map("interest_comission")
+
+  // How much interest it’s due for the account at this moment.
+  // Required.
+  interestDue Decimal? @default(0.0) @map("interest_due") @db.Money // money
+
+  // The amount of interest from arrears that has been accrued in the account.
+  interestFromArrearsAccrued Float? @default(0.0) @map("interest_from_arrears_accrued")
+
+  // The total interest from arrears which is currently owed and outstanding for this account,
+  // (total interest from arrears due - interest from arrears paid).
+  interestFromArrearsBalance Float? @default(0.0) @map("interest_from_arrears_balance")
+
+  // How much interest from arrears is due for the account at this moment.
+  interestFromArrearsDue Float? @default(0.0) @map("interest_from_arrears_due")
+
+  // Total interest from arrears paid into the account.
+  interestFromArrearsPaid Float? @default(0.0) @map("interest_from_arrears_paid")
+
+  // The total interest paid for this loan account.
+  // Required.
+  interestPaid Decimal? @default(0.0) @map("interest_paid") @db.Money // money
+
+  // The interest rate for the loan account. See the charge frequency for how it is used.
+  // Required.
+  interestRate Float @map("interest_rate")
+
+  // Indicates how often the index rate for this account should be reviewed
+  // in the units specified in the interestRateReviewUnit column.
+  interestRateReviewCount Int? @map("interest_rate_review_count")
+
+  // The unit (DAYS, WEEKS, MONTHS) indicating how often the index rate should be checked.
+  interestRateReviewUnit InterestRateReviewUnit? @map("interest_rate_review_unit")
+
+  // Whether the account uses a default FIXED_INTEREST_RATE or is linked to an INDEX_INTEREST_RATE
+  interestRateSource InterestRateSource? @default(FIXED_INTEREST_RATE) @map("interest_rate_source")
+
+  // POSTPONED
+  // Holds the possible values for the version of the algorithm used for applying rounding on the loan accounts interest values.
+  // interestRoundingVersion InterestRoundingVersion? @map("interest_rounding_version")
+
+  // The loan account interest type.
+  interestType InterestType? @map("interest_type")
+
+  // When/if the account had last been evaluated for interest, principal, fees and penalties calculations (UTC).
+  accountAppraisalAt DateTime? @map("account_appraisal_at")
+
+  // Last date when interest was applied (posted) to the account (Organization Time).
+  interestAppliedAt DateTime? @map("interest_applied_at")
+
+  // The date on which the last review was carried out for accounts using an index interest rate.
+  interestReviewAt DateTime? @map("interest_review_at")
+
+  // Date when the account was set for the last time in the LOCKED sub-state.
+  // If null, the account is not locked anymore or it was never locked (OrganizationTime).
+  lockedAt DateTime? @map("locked_at")
+
+  // Date when the account was last set to In Arrears standing or null ifnever set (Organization Time).
+  setToArrearsAt DateTime? @map("set_to_arrears_at")
+
+  // When/if the account had last tax rate checked (as Organization Time).
+  taxRateReviewAt DateTime? @map("tax_rate_review_at")
+
+  // Overdue payments recalculation method copied from the loan product on which this account is based.
+  latePaymentsRecalculationMethod LatePaymentsRecalculationMethod? @map("late_payments_recalculation_method")
+
+  // The original loan amount given out to the client.
+  // Required.
+  loanAmount Decimal @map("loan_amount") @db.Money // money
+
+  // Display name of the loan account. Often just the same as the product name.
+  // Required.
+  loanName String @map("loan_name")
+
+  // Specifies on what amount are the penalties calculated (Eg. OVERDUE_BALANCE, OVERDUE_BALANCE_AND_INTEREST).
+  loanPenaltyCalculationMethod LoanPenaltyCalculationMethod? @default(NONE) @map("loan_penalty_calculation_method")
+
+  // A list with operations which are locked when the account is in LOCKED sub-state.
+  lockedOperations String[] @default([]) @map("locked_operations")
+
+  // Notes and details about this loan account/application.
+  notes String? @map("notes")
+
+  // The method used by the loans defining how the payments get performed.
+  paymentMethod PaymentMethod? @map("payment_method")
+
+  // How much fees are still due on the account (relevant for fixed accounts only).
+  penaltyBalance Decimal? @default(0.0) @map("penalty_balance") @db.Money // money
+
+  // The total penalty due for this loan account.
+  // Required.
+  penaltyDue Decimal? @default(0.0) @map("penalty_due") @db.Money // money
+
+  // The total penalty paid for this loan account.
+  // Required.
+  penaltyPaid Decimal? @default(0.0) @map("penalty_paid") @db.Money // money
+
+  // Specifies the rate (in percent) which is charged as a penalty.
+  penaltyRate Float? @default(0.0) @map("penalty_rate")
+
+  // The periodic payment amount for the accounts which have balloon payments.
+  balloonPeriodicPayment Float? @map("balloon_periodic_payment")
+
+  // Whether the pre-payments are allowed or not for this account.
+  prepaymentAcceptance Boolean? @map("prepayments_acceptance")
+
+  // Repayment recalculation method copied from the loan product on which this account is based.
+  // Holds the possible options for how are the pre-payments affecting the number of installments
+  // and the amount allocated per installment for a repayments schedule belonging to a DYNAMIC loan account.
+  prepaymentRecalculationMethod PrepaymentRecalculationMethod? @default(NO_RECALCULATION) @map("prepayment_recalculation_method")
+
+  // The total principal currently owed and outstanding for the client for this account (principal disbursed - principal paid).
+  principalBalance Decimal? @default(0.0) @map("principal_balance") @db.Money // money
+
+  // How much principal is currently due for this account.
+  // Required.
+  principalDue Decimal? @default(0.0) @map("principal_due") @db.Money // money
+
+  // Total principal paid into the account.
+  principalPaid Decimal? @default(0.0) @map("principal_paid") @db.Money // money
+
+  // Defines the installment status after the principal was paid off as part of an over-payment.
+  principalPaidInstallmentStatus PrincipalPaidInstallmentStatus? @map("principal_paid_installment_status")
+
+  // Once at how many repayments has the principal to be paid.
+  principalInstallmentInterval Int? @map("principal_installment_interval")
+
+  // Foreign Key to the LoanProduct with which this account was created.
+  // Required.
+  productId Int?         @map("product_id")
+  product   LoanProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // The total redraw amount available to the client
+  redrawBalance Float @default(0.0) @map("redraw_balance")
+
+  // How many installments are required to pay back the loan.
+  // Must be same number as number of repayments when loan is initially disbursed.
+  // Required.
+  numInstallments Int @map("num_installments")
+
+  // How often the loan is to be repaid.
+  // For instance “1” with the unit being “Days” means every day.
+  // Determines the repayment schedule.
+  // Required.
+  installmentPeriodCount Int? @default(1) @map("installment_period_count")
+
+  // Unit in which the repaymentPeriodCount is being represented.
+  // Required.
+  installmentPeriodUnit InstallmentPeriodUnit? @default(MONTHS) @map("installment_period_unit")
+
+  // The method used by the loans to compute the repayment schedule.
+  installmentScheduleMethod InstallmentScheduleMethod? @map("installment_schedule_method")
+
+  // TODO
+  // Foreign key to another LoanAccount if this account has been closed with state CLOSED_RESCHEDULED.
+  // Or null if not rescheduled
+  // rescheduleAccountKey
+
+  // The methodology used by this product to compute the due dates of the repayments
+  scheduleDueDatesMethod ScheduleDueDatesMethod? @map("schedule_due_dates_method")
+
+  // Determines how to handle the short months, if they select a fixed day of month > 28.
+  // Will be null if no such date is selected and also for the Interval methodology.
+  // Only available if the Repayment Methodology is FIXED_DAYS_OF_MONTH
+  shortMonthHandlingMethod ShortMonthHandlingMethod? @map("short_month_handling_method")
+
+  // this field has been introduced in 6/2023, for camel ventures.
+  // It allows having the first `interestOnlyPeriodCount` installments to be interest only.
+  startingInterestOnlyPeriodCount Int @default(0) @map("interest_only_period_count")
+
+  contractId Int? @map("contract_id")
+
+  // TODO/POSTPONED
+  // The current tax rate of the account
+  // taxRate Float? @map("tax_rate")
+
+  // TODO/POSTPONED
+  // tranches
+
+  installments     Installment[]
+  periodicPayments PeriodicPayment[]
+  loanTransactions LoanTransaction[]
+  gLJournalEntry   GLJournalEntry[]
+  paymentPlans     PaymentPlan[]
+
+  organizationCommissionPercent Float? @default(0) @map("organization_commision_percent")
+
+  @@map("loan_accounts")
+}
+
+model OTP {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  otp       String
+  expiresAt DateTime @default(now()) @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userId Int @unique() @map("user_id")
+
+  @@map("otps")
+}
+
+model NotificationTemplate {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  event       String
+  description String?
+  titleAr     String?  @map("title_ar")
+  bodyAr      String   @map("body_ar")
+  titleEn     String?  @map("title_en")
+  bodyEn      String   @map("body_en")
+
+  type NotificationType
+
+  @@map("notifiction_templates")
+}
+
+enum NotificationType {
+  SMS
+  EMAIL
+  PUSH_NOTIFICATION
+
+  @@map("notification_type")
+}
+
+model LoanTransaction {
+  id                           Int                 @id @default(autoincrement())
+  createdAt                    DateTime            @default(now()) @map("created_at")
+  updatedAt                    DateTime            @updatedAt @map("updated_at")
+  feesAmount                   Float?              @default(0) @map("fees_amount")
+  interestAmount               Float?              @default(0) @map("interest_amount")
+  penaltyAmount                Float?              @default(0) @map("penalty_amount")
+  principalAmount              Float?              @default(0) @map("principal_amount")
+  principalBalance             Float?              @default(0) @map("principal_balance")
+  organizationCommissionAmount Float?              @default(0) @map("organization_commision_amount")
+  amount                       Float               @map("amount")
+  comment                      String?             @map("comment")
+  entryDate                    DateTime            @map("entry_date")
+  type                         LoanTransactionType
+  userId                       Int                 @map("user_id")
+  loanAccountId                Int?                @map("loan_account_id")
+  loanAccount                  LoanAccount?        @relation(fields: [loanAccountId], references: [id], onDelete: Cascade)
+  gLJournalEntry               GLJournalEntry[]
+
+  @@map("loan_transactions")
+}
+
+enum LoanTransactionType {
+  CREATION
+  EDIT
+  DISBURSEMENT
+  STATE_CHANGE
+  REPAYMENT
+  FEE
+  PENALTY_APPLIED
+  PAYMENT_RESCHEDULE
+  REPAYMENT_ADJUSTMENT
+  FEE_ADJUSTMENT
+  PENALTY_ADJUSTMENT
+  BRANCH_CHANGED
+  DEFERRED_INTEREST_APPLIED
+  DEFERRED_INTEREST_APPLIED_ADJUSTMENT
+  DEFERRED_INTEREST_PAID
+  DEFERRED_INTEREST_PAID_ADJUSTMENT
+  DISBURSEMENT_ADJUSTMENT
+  FEE_CHARGED
+  FEE_LOCKED
+  FEE_REDUCTION_ADJUSTMENT
+  FEE_UNLOCKED
+  FEES_DUE_REDUCED
+  IMPORT
+  INTEREST_APPLIED
+  INTEREST_APPLIED_ADJUSTMENT
+  INTEREST_DUE_REDUCED
+  INTEREST_LOCKED
+  INTEREST_RATE_CHANGED
+  INTEREST_REDUCTION_ADJUSTMENT
+  INTEREST_UNLOCKED
+  PENALTIES_DUE_REDUCED
+  PENALTY_LOCKED
+  PENALTY_REDUCTION_ADJUSTMENT
+  PENALTY_UNLOCKED
+  TAX_RATE_CHANGED
+  TERMS_CHANGED
+  TRANSFER
+  TRANSFER_ADJUSTMENT
+  WRITE_OFF
+  WRITE_OFF_ADJUSTMENT
+
+  @@map("loan_transaction_type")
+}
+
+enum GLAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+  INCOME_EXPENSE
+
+  @@map("gl_account_type")
+}
+
+enum GLCategory {
+  DETAIL
+  HEADER
+}
+
+model GLAccount {
+  id                        Int                @id @default(autoincrement())
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  updatedAt                 DateTime           @updatedAt @map("updated_at")
+  name                      String             @unique
+  description               String?
+  type                      GLAccountType
+  activated                 Boolean?           @default(true)
+  allowManualJournalEntries Boolean?           @default(true) @map("allow_manual_journal_entries")
+  stripTrailingZeros        Boolean?           @default(true) @map("strip_trailing_zeros")
+  usage                     GLCategory?        @default(DETAIL)
+  code                      Int?               @unique
+  parentId                  Int?
+  parent                    GLAccount?         @relation("parent", fields: [parentId], references: [id])
+  children                  GLAccount[]        @relation("parent")
+  gLAccountingRule          GLAccountingRule[]
+  gLJournalEntry            GLJournalEntry[]
+
+  @@map("gl_accounts")
+}
+
+model GLAccountingRule {
+  id                Int               @id @default(autoincrement())
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  financialResource FinancialResource @map("financial_resource")
+  index             Int
+  glAccountId       Int               @map("gl_account_id")
+  glAccount         GLAccount         @relation(fields: [glAccountId], references: [id], onDelete: Cascade)
+  loanProductId     Int               @map("loan_product_id")
+  product           LoanProduct       @relation(fields: [loanProductId], references: [id], onDelete: Cascade)
+  GLJournalEntry    GLJournalEntry[]
+
+  @@unique([loanProductId, financialResource])
+  @@unique([glAccountId, loanProductId])
+  @@map("gl_accounting_rules")
+}
+
+model GLJournalEntry {
+  id          Int                @id @default(autoincrement())
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  amount      Decimal            @db.Money
+  bookingDate DateTime?          @default(now()) @map("booking_date")
+  notes       String?
+  type        GLJournalEntryType
+
+  glAccountId Int       @map("gl_account_id")
+  glAccount   GLAccount @relation(fields: [glAccountId], references: [id], onDelete: Cascade)
+
+  loanProductId Int?         @map("loan_product_id")
+  product       LoanProduct? @relation(fields: [loanProductId], references: [id], onDelete: SetNull)
+
+  loanAccountId Int?         @map("loan_account_id")
+  account       LoanAccount? @relation(fields: [loanAccountId], references: [id], onDelete: Cascade)
+
+  reversalEntryId     Int?            @unique @map("reversal_entry_id")
+  reversalEntry       GLJournalEntry? @relation("reversalEntry", fields: [reversalEntryId], references: [id])
+  reversalParentEntry GLJournalEntry? @relation("reversalEntry")
+
+  transactionId Int?             @map("transaction_id")
+  transaction   LoanTransaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  userId Int?  @map("user_id")
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  glAccountRule GLAccountingRule? @relation(fields: [glAccountId, loanProductId], references: [glAccountId, loanProductId], onDelete: NoAction)
+
+  @@map("gl_journal_entries")
+}
+
+enum GLJournalEntryType {
+  DEBIT
+  CREDIT
+
+  @@map("gl_journal_entry_type")
+}
+
+enum FinancialResource {
+  PORTFOLIO_CONTROL
+  TRANSACTION_SOURCE
+  WRITE_OFF_EXPENSE
+  INTEREST_INCOME
+  FEE_INCOME
+  PENALTY_INCOME
+  PARTNER_COMMISSION_EXPENSE
+  NET_PROFIT
+  RETAINED_EARNINGS
+
+  @@map("financial_resource")
+}

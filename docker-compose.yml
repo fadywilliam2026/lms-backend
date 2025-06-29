@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  dev-db:
+    image: postgres:13
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_USR: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lms_dev_db
+  test-db:
+    image: postgres:13
+    ports:
+      - 5434:5432
+    environment:
+      POSTGRES_USR: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lms_test_db

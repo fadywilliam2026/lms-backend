@@ -1,0 +1,209 @@
+{
+  "accountArrearsSettings": {
+    "monthlyToleranceDay": 0,
+    "nonWorkingDaysMethod": "INCLUDED",
+    "toleranceCalculationMethod": "ARREARS_TOLERANCE_PERIOD",
+    "toleranceFloorAmount": 0,
+    "tolerancePercentageOfOutstandingPrincipal": 0,
+    "tolerancePeriod": 0
+  },
+  "accountHolderKey": "string",
+  "accountHolderType": "CLIENT",
+  "accountState": "PARTIAL_APPLICATION",
+  "accountSubState": "PARTIALLY_DISBURSED",
+  "accruedInterest": 0,
+  "accruedPenalty": 0,
+  "activationTransactionKey": "string",
+  "allowOffset": true,
+  "approvedDate": "2016-09-06T13:37:50+03:00",
+  "arrearsTolerancePeriod": 0,
+  "assets": [
+    {
+      "amount": 0,
+      "assetName": "string",
+      "depositAccountKey": "string",
+      "guarantorKey": "string",
+      "guarantorType": "CLIENT",
+      "originalAmount": 0,
+      "originalCurrency": {
+        "code": "AED"
+      }
+    }
+  ],
+  "assignedBranchKey": "string",
+  "assignedCentreKey": "string",
+  "assignedUserKey": "string",
+  "balances": {
+    "redrawBalance": 0
+  },
+  "closedDate": "2016-09-06T13:37:50+03:00",
+  "creationDate": "2016-09-06T13:37:50+03:00",
+  "creditArrangementKey": "string",
+  "currency": {
+    "code": "AED"
+  },
+  "disbursementDetails": {
+    "disbursementDate": "2016-09-06T13:37:50+03:00",
+    "expectedDisbursementDate": "2016-09-06T13:37:50+03:00",
+    "fees": [
+      {
+        "amount": 0,
+        "predefinedFeeEncodedKey": "string"
+      }
+    ],
+    "firstRepaymentDate": "2016-09-06T13:37:50+03:00",
+    "transactionDetails": {
+      "internalTransfer": true,
+      "targetDepositAccountKey": "string",
+      "transactionChannelId": "string",
+      "transactionChannelKey": "string"
+    }
+  },
+  "fundingSources": [
+    {
+      "amount": 0,
+      "assetName": "string",
+      "depositAccountKey": "string",
+      "guarantorKey": "string",
+      "guarantorType": "CLIENT",
+      "id": "string",
+      "interestCommission": 0,
+      "sharePercentage": 0
+    }
+  ],
+  "futurePaymentsAcceptance": "NO_FUTURE_PAYMENTS",
+  "guarantors": [
+    {
+      "amount": 0,
+      "assetName": "string",
+      "depositAccountKey": "string",
+      "guarantorKey": "string",
+      "guarantorType": "CLIENT"
+    }
+  ],
+  "id": "string",
+  "interestCommission": 0,
+  "interestSettings": {
+    "accountInterestRateSettings": [
+      {
+        "indexSourceKey": "string",
+        "interestRate": 0,
+        "interestRateCeilingValue": 0,
+        "interestRateFloorValue": 0,
+        "interestRateReviewCount": 0,
+        "interestRateReviewUnit": "DAYS",
+        "interestRateSource": "FIXED_INTEREST_RATE",
+        "interestSpread": 0,
+        "validFrom": "2016-09-06T13:37:50+03:00"
+      }
+    ],
+    "accrueInterestAfterMaturity": true,
+    "interestApplicationMethod": "AFTER_DISBURSEMENT",
+    "interestBalanceCalculationMethod": "ONLY_PRINCIPAL",
+    "interestCalculationMethod": "FLAT",
+    "interestChargeFrequency": "ANNUALIZED",
+    "interestRate": 0,
+    "interestRateReviewCount": 0,
+    "interestRateReviewUnit": "DAYS",
+    "interestRateSource": "FIXED_INTEREST_RATE",
+    "interestSpread": 0,
+    "interestType": "SIMPLE_INTEREST"
+  },
+  "lastAccountAppraisalDate": "2016-09-06T13:37:50+03:00",
+  "lastInterestAppliedDate": "2016-09-06T13:37:50+03:00",
+  "lastInterestReviewDate": "2016-09-06T13:37:50+03:00",
+  "lastLockedDate": "2016-09-06T13:37:50+03:00",
+  "lastModifiedDate": "2016-09-06T13:37:50+03:00",
+  "lastSetToArrearsDate": "2016-09-06T13:37:50+03:00",
+  "lastTaxRateReviewDate": "2016-09-06T13:37:50+03:00",
+  "latePaymentsRecalculationMethod": "OVERDUE_INSTALLMENTS_INCREASE",
+  "loanAmount": 0,
+  "loanName": "string",
+  "lockedOperations": ["APPLY_INTEREST"],
+  "migrationEventKey": "string",
+  "notes": "string",
+  "originalAccountKey": "string",
+  "paymentHolidaysAccruedInterest": 0,
+  "paymentMethod": "HORIZONTAL",
+  "penaltySettings": {
+    "loanPenaltyCalculationMethod": "NONE",
+    "penaltyRate": 0
+  },
+  "plannedInstallmentFees": [
+    {
+      "amount": 0,
+      "applyOnDate": "2016-09-06T13:37:50+03:00",
+      "installmentKey": "string",
+      "installmentNumber": 0,
+      "predefinedFeeKey": "string"
+    }
+  ],
+  "prepaymentSettings": {
+    "applyInterestOnPrepaymentMethod": "AUTOMATIC",
+    "elementsRecalculationMethod": "PRINCIPAL_EXPECTED_FIXED",
+    "prepaymentRecalculationMethod": "NO_RECALCULATION",
+    "principalPaidInstallmentStatus": "PARTIALLY_PAID"
+  },
+  "principalPaymentSettings": {
+    "amount": 0,
+    "includeFeesInFloorAmount": true,
+    "includeInterestInFloorAmount": true,
+    "percentage": 0,
+    "principalCeilingValue": 0,
+    "principalFloorValue": 0,
+    "principalPaymentMethod": "FLAT",
+    "totalDueAmountFloor": 0,
+    "totalDuePayment": "FLAT"
+  },
+  "productTypeKey": "string",
+  "redrawSettings": {
+    "restrictNextDueWithdrawal": true
+  },
+  "rescheduledAccountKey": "string",
+  "scheduleSettings": {
+    "billingCycle": {
+      "days": [0]
+    },
+    "defaultFirstRepaymentDueDateOffset": 0,
+    "fixedDaysOfMonth": [0],
+    "gracePeriod": 0,
+    "gracePeriodType": "NONE",
+    "hasCustomSchedule": true,
+    "paymentPlan": [
+      {
+        "amount": 0,
+        "toInstallment": 0
+      }
+    ],
+    "periodicPayment": 0,
+    "previewSchedule": {
+      "numberOfPreviewedInstalments": 0
+    },
+    "principalRepaymentInterval": 0,
+    "repaymentInstallments": 0,
+    "repaymentPeriodCount": 0,
+    "repaymentPeriodUnit": "DAYS",
+    "repaymentScheduleMethod": "NONE",
+    "scheduleDueDatesMethod": "INTERVAL",
+    "shortMonthHandlingMethod": "LAST_DAY_IN_MONTH"
+  },
+  "settlementAccountKey": "string",
+  "taxRate": 0,
+  "terminationDate": "2016-09-06T13:37:50+03:00",
+  "tranches": [
+    {
+      "amount": 0,
+      "disbursementDetails": {
+        "disbursementTransactionKey": "string",
+        "expectedDisbursementDate": "2016-09-06T13:37:50+03:00"
+      },
+      "fees": [
+        {
+          "amount": 0,
+          "predefinedFeeEncodedKey": "string"
+        }
+      ],
+      "trancheNumber": 0
+    }
+  ]
+}

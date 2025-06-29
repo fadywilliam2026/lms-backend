@@ -1,0 +1,25 @@
+{
+  "clientId": 1,
+  "accountArrearsSettings": {
+    "tolerancePeriod": 5
+  },
+  "accountState": "PARTIAL_APPLICATION",
+  "approvedAt": "2020-07-10",
+  "feesDue": 0,
+  "feesPaid": 0,
+  "fixedDaysOfMonth": [],
+  "interestCalculationMethod": "FLAT",
+  "interestChargeFrequency": "ANNUALIZED",
+  "interestDue": 0,
+  "interestPaid": 0,
+  "interestRate": 0,
+  "loanAmount": 0,
+  "loanName": "7mada",
+  "penaltyDue": 0,
+  "penaltyPaid": 0,
+  "principalDue": 0,
+  "productId": 1,
+  "numInstallments": 0,
+  "installmentPeriodCount": 0,
+  "installmentPeriodUnit": "DAYS"
+}

@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "interest_type" ADD VALUE 'COMPOUNDING_INTEREST';

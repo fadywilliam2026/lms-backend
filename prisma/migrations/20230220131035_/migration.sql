@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "financial_resource" ADD VALUE 'PARTNER_COMMISSION_EXPENSE';
